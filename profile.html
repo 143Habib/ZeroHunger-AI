@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        
+        <!-- EXPENSE CARD -->
+        <div class="card border-0 shadow-sm mb-4 bg-success text-white">
+            <div class="card-body p-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="fw-bold mb-0">${{ "%.2f"|format(current_user.total_expenses) }}</h2>
+                    <p class="mb-0 opacity-75">Total Value Consumed (Expenses)</p>
+                </div>
+                <i class="fas fa-wallet fa-3x opacity-50"></i>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm p-4">
+            <h4 class="mb-3">Edit Profile</h4>
+            <form method="POST">
+                <div class="mb-3">
+                    <label>Full Name</label>
+                    <input type="text" name="name" class="form-control" value="{{ current_user.full_name }}">
+                </div>
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input type="text" class="form-control" value="{{ current_user.email }}" disabled>
+                </div>
+                <div class="mb-3">
+                    <label>Dietary Preference</label>
+                    <select name="dietary_pref" class="form-control">
+                        <option value="None" {% if current_user.dietary_pref == 'None' %}selected{% endif %}>No Restrictions</option>
+                        <option value="Vegetarian" {% if current_user.dietary_pref == 'Vegetarian' %}selected{% endif %}>Vegetarian</option>
+                        <option value="Vegan" {% if current_user.dietary_pref == 'Vegan' %}selected{% endif %}>Vegan</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label>Location</label>
+                    <input type="text" name="location" class="form-control" value="{{ current_user.location or '' }}">
+                </div>
+                <button type="submit" class="btn btn-primary">Update Profile</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
