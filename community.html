@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">Community Food Share</h2>
+        <p class="text-muted">Connect with neighbors to share surplus food.</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#shareForm">
+            <i class="fas fa-plus me-2"></i>Share Item
+        </button>
+    </div>
+</div>
+
+<div class="collapse mb-4" id="shareForm">
+    <div class="card card-body shadow-sm">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-4"><input type="text" name="item_name" class="form-control" placeholder="Item Name" required></div>
+                <div class="col-md-4"><input type="text" name="description" class="form-control" placeholder="Description/Qty"></div>
+                <div class="col-md-4"><input type="text" name="contact" class="form-control" placeholder="Contact Info" required></div>
+                <div class="col-12"><button class="btn btn-primary w-100">Post to Community</button></div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    {% for item in shared_items %}
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body">
+                <h5 class="card-title fw-bold text-success">{{ item.item_name }}</h5>
+                <p class="card-text small">{{ item.description }}</p>
+                <hr>
+                <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{{ item.location }}</p>
+                <p class="mb-2"><i class="fas fa-phone me-2"></i>{{ item.contact_info }}</p>
+                <small class="text-muted">Posted: {{ item.date_posted.strftime('%Y-%m-%d') }}</small>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center py-5">
+        <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+        <p class="text-muted">No shared items yet. Be the first!</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
