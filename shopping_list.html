@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="fw-bold mb-4">Smart Shopping List</h2>
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold">Based on missing staples</div>
+            <ul class="list-group list-group-flush">
+                {% for item in shop_list %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div><h5 class="mb-0">{{ item.name }}</h5><small class="text-muted">{{ item.reason }}</small></div>
+                    <span class="text-success fw-bold">${{ "%.2f"|format(item.price) }}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-center py-4">Your pantry is well stocked!</li>
+                {% endfor %}
+            </ul>
+            <div class="card-footer text-end fw-bold">Total Est: ${{ "%.2f"|format(est_cost) }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="alert alert-info">
+            <h5><i class="fas fa-wallet"></i> Budget Tip</h5>
+            <p>Check the Community tab for surplus food before buying!</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
