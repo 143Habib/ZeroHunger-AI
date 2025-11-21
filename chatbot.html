@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-lg">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="fas fa-robot me-2"></i>NourishBot</h4>
+                <small>Your AI Food Sustainability Assistant</small>
+            </div>
+            <div class="card-body bg-light" style="min-height: 300px;">
+                {% if response %}
+                <div class="d-flex flex-row justify-content-start mb-4">
+                    <div class="p-3 ms-3 border rounded-3 bg-white">
+                        <p class="mb-0 text-success fw-bold">NourishBot:</p>
+                        <p class="mb-0">{{ response | safe }}</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted mt-5">
+                    <i class="fas fa-comments fa-3x mb-3"></i>
+                    <p>Ask me about recipes, food storage, or how to reduce waste!</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-muted d-flex justify-content-start align-items-center p-3">
+                <form method="POST" class="w-100 d-flex">
+                    <input type="text" class="form-control form-control-lg" name="message" placeholder="e.g. What can I cook with tomatoes?" required>
+                    <button class="btn btn-success ms-2" type="submit"><i class="fas fa-paper-plane"></i></button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
