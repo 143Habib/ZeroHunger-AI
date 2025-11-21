@@ -1,156 +1,113 @@
 {% extends "base.html" %}
-
 {% block content %}
-
-<div class="row fade-in-up">
-
-    <!-- Welcome Header -->
-    <div class="col-12 mb-4">
-        <div class="p-4 rounded-3 text-white shadow-sm position-relative overflow-hidden"
-             style="background: linear-gradient(135deg, #11998e, #38ef7d);">
-            <div class="position-relative z-1">
-                <h1 class="h3 fw-bold">
-                    <i class="fas fa-leaf me-2"></i>
-                    Welcome back, {{ current_user.full_name }}!
-                </h1>
-                <p class="mb-0 opacity-75">Tracking your nutrition and reducing waste.</p>
-            </div>
-            <i class="fas fa-globe-americas position-absolute text-white opacity-10"
-               style="font-size: 10rem; right: -20px; top: -30px;"></i>
-        </div>
-    </div>
-
-    <!-- METRIC CARDS (NEW) -->
-    <div class="col-12 mb-4">
-        <div class="row g-3">
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 text-center">
-                    <p class="text-muted small mb-1 text-uppercase">Items</p>
-                    <h3 class="fw-bold text-dark">{{ count }}</h3>
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card text-white bg-success p-4 shadow" style="background: linear-gradient(135deg, #11998e, #38ef7d);">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="opacity-75">SDG IMPACT SCORE</h6>
+                    <h1 class="display-3 fw-bold">{{ score }}/100</h1>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 text-center">
-                    <p class="text-muted small mb-1 text-uppercase">Total Value</p>
-                    <h3 class="fw-bold text-success">${{ total_value }}</h3>
+                <div class="text-end">
+                    <h3>${{ "%.2f"|format(stats.weekly_waste) }}</h3>
+                    <small>Wasted This Week</small>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 text-center">
-                    <p class="text-muted small mb-1 text-uppercase">Calories</p>
-                    <h3 class="fw-bold text-warning">{{ total_calories }} <span class="fs-6 text-muted">kcal</span></h3>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 text-center">
-                    <p class="text-muted small mb-1 text-uppercase">Protein</p>
-                    <h3 class="fw-bold text-primary">{{ total_protein }} <span class="fs-6 text-muted">g</span></h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- LEFT COLUMN -->
-    <div class="col-lg-8">
-        <div class="row g-4">
-            <!-- Chart -->
-            <div class="col-12">
-                <div class="card border-0 shadow-sm p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="fw-bold text-secondary small text-uppercase mb-0">Inventory Breakdown</h5>
-                    </div>
-                    <div style="height: 250px; position: relative;">
-                        {% if count > 0 %}
-                            <canvas id="inventoryChart"></canvas>
-                        {% else %}
-                            <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
-                                <p>Add items to see stats!</p>
-                                <a href="/inventory" class="btn btn-sm btn-primary rounded-pill">Add First Item</a>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Logs -->
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white border-0 py-3">
-                        <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-warning"></i>Recent Activity</h5>
-                    </div>
-                    <ul class="list-group list-group-flush">
-                        {% for log in logs %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                            <div>
-                                <span class="fw-bold text-dark">{{ log.item_name }}</span>
-                                <span class="badge bg-light text-dark border ms-2">{{ log.category }}</span>
-                            </div>
-                            <span class="small text-muted">{{ log.date_consumed.strftime('%b %d') }}</span>
-                        </li>
-                        {% else %}
-                        <li class="list-group-item text-center text-muted py-4">No recent activity.</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- RIGHT COLUMN (Actions & Tips) -->
-    <div class="col-lg-4">
-        <!-- Upload -->
-        <div class="card p-3 border-0 shadow-sm mb-4">
-            <h6 class="fw-bold mb-3">Quick Upload</h6>
-            <form action="/upload" method="POST" enctype="multipart/form-data">
-                <div class="input-group input-group-sm">
-                    <input type="file" name="file" class="form-control" required>
-                    <button class="btn btn-primary" type="submit"><i class="fas fa-upload"></i></button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Tips -->
-        <div class="card h-100 border-0 shadow-sm bg-light">
-            <div class="card-header bg-transparent border-0 pt-4 px-4">
-                <h5 class="text-success fw-bold"><i class="fas fa-lightbulb me-2"></i>Smart Tips</h5>
-            </div>
-            <div class="card-body px-4 pt-0">
-                {% for res, reason in recommendations %}
-                <div class="card mb-3 border-0 shadow-sm">
-                    <div class="card-body p-3">
-                        <div class="badge bg-warning text-dark mb-2">{{ reason }}</div>
-                        <h6 class="fw-bold mb-1">{{ res.title }}</h6>
-                        <p class="small text-muted mb-2">{{ res.description }}</p>
-                        <a href="{{ res.url }}" target="_blank" class="small text-success fw-bold">Read More &rarr;</a>
-                    </div>
-                </div>
-                {% endfor %}
             </div>
         </div>
     </div>
 </div>
 
-{% if count > 0 %}
-<script id="chart-labels" type="application/json">{{ cat_labels | tojson | safe }}</script>
-<script id="chart-data" type="application/json">{{ cat_data | tojson | safe }}</script>
+{% if stats.count == 0 %}
+<div class="alert alert-info d-flex justify-content-between align-items-center shadow-sm">
+    <span><i class="fas fa-info-circle me-2"></i>Dashboard is empty.</span>
+    <a href="/populate_demo" class="btn btn-primary btn-sm fw-bold">Load Demo Data</a>
+</div>
+{% endif %}
+
+<div class="row">
+    <!-- LEFT COLUMN -->
+    <div class="col-lg-8">
+        <!-- AI Insights -->
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-header bg-white fw-bold text-primary">
+                <i class="fas fa-robot me-2"></i>AI Insights
+            </div>
+            <div class="card-body">
+                {% for i in insights %}
+                    <div class="alert alert-light border-start border-info border-3 mb-2">{{ i }}</div>
+                {% else %}
+                    <p class="text-muted">Log items to see AI insights.</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Risks -->
+        {% if risks %}
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-header bg-danger text-white fw-bold">
+                <i class="fas fa-exclamation-triangle me-2"></i>Expiration Risks
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for r in risks %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><strong>{{ r.name }}</strong> <small class="text-danger">{{ r.msg }}</small></span>
+                    <a href="/log_action/{{ r.id }}/eat" class="btn btn-sm btn-success rounded-pill">Eat Now</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- Chart -->
+        <div class="card p-4 shadow-sm border-0 mb-4">
+            <h5 class="card-title fw-bold mb-3">Inventory Breakdown</h5>
+            <div style="height: 250px; width: 100%;">
+                <canvas id="invChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-lg-4">
+        <div class="d-grid gap-3 mb-4">
+            <a href="/inventory" class="btn btn-outline-dark py-2 shadow-sm">Update Inventory</a>
+            <a href="/shopping_list" class="btn btn-outline-primary py-2 shadow-sm">Shopping List</a>
+            <a href="/nourish_bot" class="btn btn-warning text-white py-2 shadow-sm">Ask NourishBot</a>
+            <a href="/meal_plan" class="btn btn-info text-white py-2 shadow-sm">Generate Meal Plan</a>
+        </div>
+        
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold">Recent Activity</div>
+            <ul class="list-group list-group-flush">
+                {% for log in logs %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ log.item_name }}</span>
+                    <span class="badge bg-{{ 'success' if log.status == 'Consumed' else 'danger' }}">{{ log.status }}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted text-center py-3">No recent activity.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    const ctx = document.getElementById('inventoryChart').getContext('2d');
-    const labels = JSON.parse(document.getElementById('chart-labels').textContent);
-    const data = JSON.parse(document.getElementById('chart-data').textContent);
+    var chartLabels = JSON.parse('{{ cat_labels | tojson | safe }}');
+    var chartData = JSON.parse('{{ cat_data | tojson | safe }}');
+
+    var ctx = document.getElementById('invChart').getContext('2d');
     new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels: chartLabels,
             datasets: [{
-                data: data,
-                backgroundColor: ['#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#9b59b6'],
-                borderWidth: 0
+                data: chartData,
+                backgroundColor: ['#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#9b59b6', '#34495e']
             }]
         },
-        options: { maintainAspectRatio: false, cutout: '70%' }
+        options: { responsive: true, maintainAspectRatio: false }
     });
-});
 </script>
-{% endif %}
 {% endblock %}
