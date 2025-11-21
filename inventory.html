@@ -1,90 +1,62 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 fade-in-up">
-    <h2 class="fw-bold">My Inventory</h2>
+<div class="row mb-3">
+    <div class="col d-flex justify-content-between">
+        <h2 class="fw-bold">Inventory</h2>
+        <button class="btn btn-success" type="button" data-bs-toggle="collapse" data-bs-target="#addForm"><i class="fas fa-plus me-2"></i>Add Manual</button>
+    </div>
 </div>
 
-<!-- Add Item Card -->
-<div class="card mb-4 border-0 shadow-sm fade-in-up">
-    <div class="card-header bg-success text-white border-0">
-        <i class="fas fa-plus-circle me-2"></i>Add New Item
-    </div>
-    <div class="card-body">
-        <form method="POST" class="row g-3 align-items-center">
+<div class="collapse mb-4" id="addForm">
+    <div class="card card-body shadow-sm">
+        <form method="POST" class="row g-3">
             <div class="col-md-4">
-                <label class="small text-muted mb-1">Item Name (Auto-fills Stats)</label>
-                <input type="text" name="item_name" list="foodOptions" class="form-control" placeholder="e.g. Apple, Milk..." required autocomplete="off">
-                <datalist id="foodOptions">
-                    {% for food in suggested_foods %}
-                        <option value="{{ food }}">
-                    {% endfor %}
-                </datalist>
+                <input type="text" name="item_name" list="sugg" class="form-control" placeholder="Name (e.g. Apple)" required>
+                <datalist id="sugg">{% for s in suggestions %}<option value="{{ s }}">{% endfor %}</datalist>
             </div>
-            <div class="col-md-2">
-                <label class="small text-muted mb-1">Quantity</label>
-                <input type="number" name="quantity" class="form-control" value="1" min="1" required>
-            </div>
+            <div class="col-md-2"><input type="number" name="quantity" class="form-control" value="1" min="1" required></div>
             <div class="col-md-3">
-                <label class="small text-muted mb-1">Category</label>
                 <select name="category" class="form-select">
-                    <option value="Other">Auto-Detect / Other</option>
-                    <option value="Dairy">Dairy</option>
-                    <option value="Fruit">Fruit</option>
-                    <option value="Vegetable">Vegetable</option>
-                    <option value="Grain">Grain</option>
+                    <option value="Fruit">Fruit</option><option value="Vegetable">Vegetable</option>
+                    <option value="Dairy">Dairy</option><option value="Grain">Grain</option>
                     <option value="Meat">Meat</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <button type="submit" class="btn btn-success w-100" style="margin-top: 23px;">Add Item</button>
-            </div>
+            <div class="col-md-3"><button class="btn btn-primary w-100">Save</button></div>
         </form>
     </div>
 </div>
 
-<!-- Inventory Table -->
-<div class="table-responsive card border-0 shadow-sm fade-in-up">
-    <table class="table table-hover align-middle mb-0">
-        <thead class="bg-light">
-            <tr>
-                <th class="ps-4">Item</th>
-                <th>Stats (Per Unit)</th>
-                <th>Expiry</th>
-                <th class="text-end pe-4">Actions</th>
-            </tr>
-        </thead>
+<div class="card mb-4 p-3 bg-white border-0 d-flex flex-row align-items-center shadow-sm">
+    <i class="fas fa-camera fa-2x text-muted me-3"></i>
+    <form action="/ocr_upload" method="POST" enctype="multipart/form-data" class="d-flex w-100">
+        <input type="file" name="file" class="form-control me-2" required>
+        <button class="btn btn-dark text-nowrap">Scan Receipt</button>
+    </form>
+</div>
+
+<div class="card shadow-sm border-0">
+    <table class="table table-hover mb-0 align-middle">
+        <thead class="bg-light"><tr><th class="ps-4">Item</th><th>Expiry</th><th class="text-end pe-4">Actions</th></tr></thead>
         <tbody>
             {% for item in items %}
             <tr>
-                <td class="ps-4">
-                    <div class="fw-bold text-dark">{{ item.item_name }}</div>
-                    <small class="text-muted">Qty: {{ item.quantity }} &bull; {{ item.category }}</small>
-                </td>
-                <td>
-                    <!-- STATS BADGES -->
-                    <span class="badge bg-success bg-opacity-10 text-success border border-success mb-1">${{ item.price }}</span>
-                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning mb-1">{{ item.calories }} kcal</span>
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary mb-1">{{ item.protein }}g Prot</span>
-                </td>
+                <td class="ps-4"><strong>{{ item.item_name }}</strong> <span class="text-muted small">({{ item.category }})</span></td>
                 <td>
                     {% if item.expiration_date %}
-                        {% set days = (item.expiration_date - now).days %}
-                        {% if days < 0 %} <span class="badge bg-danger">Expired</span>
-                        {% elif days < 3 %} <span class="badge bg-warning text-dark">{{ days }} days left</span>
-                        {% else %} <span class="badge bg-light text-success border">{{ days }} days</span>
-                        {% endif %}
+                        {% set d = (item.expiration_date - now).days %}
+                        <span class="badge {% if d<0 %}bg-danger{% elif d<3 %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}">
+                            {{ "Expired" if d < 0 else d ~ " days" }}
+                        </span>
                     {% endif %}
                 </td>
                 <td class="text-end pe-4">
-                    <form action="/log_consumption" method="POST" class="d-inline">
-                        <input type="hidden" name="item_name" value="{{ item.item_name }}">
-                        <input type="hidden" name="category" value="{{ item.category }}">
-                        <button type="submit" class="btn btn-sm btn-outline-primary rounded-pill px-3">Consume</button>
-                    </form>
+                    <a href="/log_action/{{ item.id }}/eat" class="btn btn-sm btn-success me-1"><i class="fas fa-utensils"></i></a>
+                    <a href="/log_action/{{ item.id }}/waste" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="text-center py-4 text-muted">Inventory empty.</td></tr>
+            <tr><td colspan="3" class="text-center py-4 text-muted">Inventory empty.</td></tr>
             {% endfor %}
         </tbody>
     </table>
