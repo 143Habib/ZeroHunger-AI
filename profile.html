@@ -2,42 +2,48 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
+        <h2 class="mb-4">My Profile</h2>
         
-        <!-- EXPENSE CARD -->
-        <div class="card border-0 shadow-sm mb-4 bg-success text-white">
-            <div class="card-body p-4 d-flex justify-content-between align-items-center">
-                <div>
-                    <h2 class="fw-bold mb-0">${{ "%.2f"|format(current_user.total_expenses) }}</h2>
-                    <p class="mb-0 opacity-75">Total Value Consumed (Expenses)</p>
+        <!-- STATS -->
+        <div class="row mb-4">
+            <div class="col-6">
+                <div class="card p-3 bg-success text-white text-center">
+                    <h3>${{ user.total_money_saved }}</h3>
+                    <small>Money Saved</small>
                 </div>
-                <i class="fas fa-wallet fa-3x opacity-50"></i>
+            </div>
+            <div class="col-6">
+                <div class="card p-3 bg-danger text-white text-center">
+                    <h3>${{ user.total_money_wasted }}</h3>
+                    <small>Money Wasted</small>
+                </div>
             </div>
         </div>
 
-        <div class="card border-0 shadow-sm p-4">
-            <h4 class="mb-3">Edit Profile</h4>
+        <!-- EDIT FORM -->
+        <div class="card shadow-sm p-4">
             <form method="POST">
                 <div class="mb-3">
                     <label>Full Name</label>
-                    <input type="text" name="name" class="form-control" value="{{ current_user.full_name }}">
+                    <input type="text" name="name" class="form-control" value="{{ user.full_name }}">
                 </div>
                 <div class="mb-3">
                     <label>Email</label>
-                    <input type="text" class="form-control" value="{{ current_user.email }}" disabled>
+                    <input type="text" class="form-control" value="{{ user.email }}" disabled>
                 </div>
                 <div class="mb-3">
                     <label>Dietary Preference</label>
-                    <select name="dietary_pref" class="form-control">
-                        <option value="None" {% if current_user.dietary_pref == 'None' %}selected{% endif %}>No Restrictions</option>
-                        <option value="Vegetarian" {% if current_user.dietary_pref == 'Vegetarian' %}selected{% endif %}>Vegetarian</option>
-                        <option value="Vegan" {% if current_user.dietary_pref == 'Vegan' %}selected{% endif %}>Vegan</option>
+                    <select name="dietary_pref" class="form-select">
+                        <option value="None" {% if user.dietary_pref == 'None' %}selected{% endif %}>None</option>
+                        <option value="Vegetarian" {% if user.dietary_pref == 'Vegetarian' %}selected{% endif %}>Vegetarian</option>
+                        <option value="Vegan" {% if user.dietary_pref == 'Vegan' %}selected{% endif %}>Vegan</option>
                     </select>
                 </div>
                 <div class="mb-3">
                     <label>Location</label>
-                    <input type="text" name="location" class="form-control" value="{{ current_user.location or '' }}">
+                    <input type="text" name="location" class="form-control" value="{{ user.location }}">
                 </div>
-                <button type="submit" class="btn btn-primary">Update Profile</button>
+                <button type="submit" class="btn btn-primary w-100">Save Changes</button>
             </form>
         </div>
     </div>
