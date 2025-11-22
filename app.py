@@ -1,11 +1,12 @@
 import os
-import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from models import db, User, Inventory, ConsumptionLog, FoodDatabase, Resource, SharedItem
+
+# Import all models including the new ShoppingItem
+from models import db, User, Inventory, ConsumptionLog, FoodDatabase, Resource, SharedItem, ShoppingItem
 from seed_data import seed_database
 import ai_service
 
@@ -19,15 +20,17 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
-# --- LANGUAGE CONTEXT PROCESSOR ---
+# --- 1. GLOBAL CONTEXT & UTILS ---
+
 @app.context_processor
 def inject_locale():
+    """Injects language dictionary into every template to fix 'txt undefined' error."""
     lang = session.get('lang', 'en')
     txt = {
         'en': {'dash': 'Dashboard', 'inv': 'Inventory', 'shop': 'Shopping List', 'com': 'Community', 'log': 'Logout'},
         'bn': {'dash': 'ড্যাশবোর্ড', 'inv': 'ইনভেন্টরি', 'shop': 'শপিং লিস্ট', 'com': 'কমিউনিটি', 'log': 'লগ আউট'}
     }
-    return dict(lang=lang, txt=txt[lang])
+    return dict(lang=lang, txt=txt.get(lang, txt['en']))
 
 @app.route('/set_lang/<lang_code>')
 def set_lang(lang_code):
@@ -38,26 +41,7 @@ def set_lang(lang_code):
 def load_user(id):
     return User.query.get(int(id))
 
-# --- AUTH ROUTES ---
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists.', 'danger')
-        else:
-            user = User(
-                email=email,
-                full_name=request.form.get('name'),
-                password=generate_password_hash(request.form.get('password')),
-                dietary_pref=request.form.get('dietary_pref'),
-                location=request.form.get('location')
-            )
-            db.session.add(user)
-            db.session.commit()
-            login_user(user)
-            return redirect(url_for('dashboard'))
-    return render_template('register.html')
+# --- 2. AUTHENTICATION ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -66,8 +50,26 @@ def login():
         if user and check_password_hash(user.password, request.form.get('password')):
             login_user(user)
             return redirect(url_for('dashboard'))
-        flash('Invalid credentials.', 'danger')
+        flash('Invalid credentials', 'danger')
     return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        if User.query.filter_by(email=request.form.get('email')).first():
+            flash('Email taken', 'danger')
+        else:
+            user = User(
+                email=request.form.get('email'), 
+                full_name=request.form.get('name'),
+                password=generate_password_hash(request.form.get('password')),
+                dietary_pref=request.form.get('dietary_pref')
+            )
+            db.session.add(user)
+            db.session.commit()
+            login_user(user)
+            return redirect(url_for('dashboard'))
+    return render_template('register.html')
 
 @app.route('/logout')
 @login_required
@@ -75,84 +77,100 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- MAIN FEATURES ---
+# --- 3. DASHBOARD & ANALYTICS ---
+
 @app.route('/')
 @login_required
 def dashboard():
     items = Inventory.query.filter_by(user_id=current_user.id).all()
     logs = ConsumptionLog.query.filter_by(user_id=current_user.id).order_by(ConsumptionLog.date_logged.desc()).all()
     
-    # AI Logic
-    if items or logs:
-        score, insights = ai_service.analyze_impact(current_user, items, logs)
-        risks = ai_service.predict_risks(items)
-        current_user.sdg_score = score
-        db.session.commit()
-    else:
-        score = 50
-        insights = ["Welcome! Start logging items to see AI insights."]
-        risks = []
-
-    # Stats
+    # A. AI Analysis (Patterns & SDG Score)
+    score, insights = ai_service.analyze_patterns(current_user, items, logs)
+    current_user.sdg_score = score
+    
+    # B. Risk Prediction
+    risks = ai_service.predict_risks(items)
+    
+    # C. Waste Statistics (Money & Weight)
     now = datetime.utcnow()
-    weekly_waste = sum(l.price for l in logs if l.status == 'Wasted' and l.date_logged > now - timedelta(days=7))
-    stats = {'count': len(items), 'weekly_waste': weekly_waste}
+    week_ago = now - timedelta(days=7)
+    weekly_logs = [l for l in logs if l.date_logged > week_ago and l.status == 'Wasted']
+    
+    waste_stats = {
+        'money_week': sum(l.price_loss for l in weekly_logs),
+        'kg_week': sum(l.weight_loss_g for l in weekly_logs) / 1000.0,
+        'total_money': current_user.total_money_wasted,
+        'total_kg': current_user.total_kg_wasted / 1000.0
+    }
+    
+    db.session.commit() # Save updated score
 
-    # Chart Data
+    # D. Chart Data Preparation
     cat_data = {}
     if items:
-        for i in items:
-            cat_data[i.category] = cat_data.get(i.category, 0) + i.quantity
-    else:
-        cat_data = {'Empty': 1}
+        for i in items: cat_data[i.category] = cat_data.get(i.category, 0) + i.quantity
+    else: cat_data = {'Empty': 1}
 
-    return render_template('dashboard.html', 
-                           items=items, logs=logs[:5], 
-                           score=score, insights=insights, risks=risks, stats=stats,
-                           cat_labels=list(cat_data.keys()), cat_data=list(cat_data.values()))
+    return render_template('dashboard.html', items=items, logs=logs[:5], 
+                           score=score, insights=insights, risks=risks, 
+                           waste=waste_stats, cat_labels=list(cat_data.keys()), cat_data=list(cat_data.values()))
 
-@app.route('/populate_demo')
-@login_required
-def populate_demo():
-    demo_items = [
-        ("Organic Milk", "Dairy", 2.50, 4), 
-        ("Spinach", "Vegetable", 3.00, 2), 
-        ("Bread", "Grain", 4.00, 7),
-        ("Chicken", "Meat", 8.00, 5)
-    ]
-    for n, c, p, days in demo_items:
-        exp = datetime.utcnow() + timedelta(days=days)
-        db.session.add(Inventory(user_id=current_user.id, item_name=n, category=c, quantity=1, price=p, expiration_date=exp))
-    
-    db.session.add(ConsumptionLog(user_id=current_user.id, item_name="Apple", category="Fruit", status="Consumed", price=0.5))
-    db.session.add(ConsumptionLog(user_id=current_user.id, item_name="Yogurt", category="Dairy", status="Wasted", price=1.2))
-    db.session.commit()
-    flash("Demo Data Loaded!", "success")
-    return redirect(url_for('dashboard'))
+# --- 4. INVENTORY MANAGEMENT (Strict Validation) ---
 
 @app.route('/inventory', methods=['GET', 'POST'])
 @login_required
 def inventory():
     if request.method == 'POST':
-        name = request.form.get('item_name')
-        qty = int(request.form.get('quantity'))
-        cat = request.form.get('category')
+        name = request.form.get('item_name').strip()
         
-        ref = FoodDatabase.query.filter(FoodDatabase.name.ilike(f"%{name}%")).first()
-        price = ref.cost_per_unit if ref else 1.0
-        days = ref.expiration_days if ref else 7
-        exp_date = datetime.utcnow() + timedelta(days=days)
+        # 1. STRICT CHECK: Look for exact match (Case Insensitive)
+        ref = FoodDatabase.query.filter(FoodDatabase.name.ilike(name)).first()
         
-        db.session.add(Inventory(
-            user_id=current_user.id, item_name=name, quantity=qty, category=cat,
-            expiration_date=exp_date, price=price
-        ))
-        db.session.commit()
-        return redirect(url_for('inventory'))
+        if not ref:
+            flash(f"❌ Error: '{name}' is not in our food database. Please select a valid item.", "danger")
+            return redirect(url_for('inventory'))
 
+        # 2. SUCCESS: Add to Inventory using DB Data
+        new_item = Inventory(
+            user_id=current_user.id, 
+            item_name=ref.name, 
+            category=request.form.get('category'),
+            quantity=int(request.form.get('quantity')), 
+            weight_g=ref.avg_weight_g or 100.0, 
+            price=ref.cost_per_unit or 0.0,
+            expiration_date=datetime.utcnow() + timedelta(days=ref.expiration_days or 7)
+        )
+        db.session.add(new_item)
+        db.session.commit()
+        flash(f"✅ Added {ref.name} to inventory.", "success")
+        return redirect(url_for('inventory'))
+        
+    # GET: Fetch Inventory & ALL Valid Suggestions
     items = Inventory.query.filter_by(user_id=current_user.id).order_by(Inventory.expiration_date).all()
-    suggestions = [f.name for f in FoodDatabase.query.limit(20).all()]
+    all_foods = FoodDatabase.query.order_by(FoodDatabase.name).all()
+    suggestions = [f.name for f in all_foods]
+    
     return render_template('inventory.html', items=items, suggestions=suggestions, now=datetime.utcnow())
+
+@app.route('/ocr_upload', methods=['POST'])
+@login_required
+def ocr_upload():
+    if 'file' not in request.files: return redirect(url_for('inventory'))
+    file = request.files['file']
+    if file.filename:
+        # Mock OCR Process
+        detected = ai_service.mock_ocr_process()
+        for d in detected:
+            exp = datetime.utcnow() + timedelta(days=d['days'])
+            item = Inventory(
+                user_id=current_user.id, item_name=d['name'], category=d['cat'],
+                quantity=1, weight_g=d['weight'], price=d['price'], expiration_date=exp
+            )
+            db.session.add(item)
+        db.session.commit()
+        flash(f"Scanned & Added: {', '.join([d['name'] for d in detected])}", "success")
+    return redirect(url_for('inventory'))
 
 @app.route('/log_action/<int:item_id>/<action>')
 @login_required
@@ -161,52 +179,132 @@ def log_action(item_id, action):
     if item.user_id != current_user.id: return redirect(url_for('dashboard'))
     
     status = "Consumed" if action == "eat" else "Wasted"
-    log = ConsumptionLog(user_id=current_user.id, item_name=item.item_name, category=item.category, status=status, price=item.price)
+    
+    # Create Log
+    log = ConsumptionLog(
+        user_id=current_user.id, item_name=item.item_name, category=item.category,
+        status=status, price_loss=item.price, weight_loss_g=item.weight_g
+    )
     db.session.add(log)
     
-    if status == "Consumed":
-        current_user.total_money_saved += item.price
-    else:
+    # Update User Stats
+    if status == "Wasted":
         current_user.total_money_wasted += item.price
+        current_user.total_kg_wasted += item.weight_g
     
-    if item.quantity > 1:
-        item.quantity -= 1
-    else:
-        db.session.delete(item)
-    
+    # Remove from Inventory
+    db.session.delete(item)
     db.session.commit()
-    flash(f"Logged as {status}", "success" if status=="Consumed" else "warning")
     return redirect(request.referrer or url_for('inventory'))
 
-@app.route('/shopping_list')
+# --- 5. PRO SHOPPING LIST (Budget & AI) ---
+
+@app.route('/shopping_list', methods=['GET', 'POST'])
 @login_required
 def shopping_list():
-    # Logic: Suggest items not in inventory
-    staples = ["Rice", "Milk", "Eggs", "Spinach", "Bread", "Banana"]
-    user_items = [i.item_name for i in Inventory.query.filter_by(user_id=current_user.id).all()]
-    
-    shop_list = []
-    est_cost = 0.0
-    
-    for s in staples:
-        found = False
-        for ui in user_items:
-            if s.lower() in ui.lower():
-                found = True
-                break
-        if not found:
-            ref = FoodDatabase.query.filter_by(name=s).first()
-            price = ref.cost_per_unit if ref else 2.0
-            shop_list.append({'name': s, 'reason': 'Restock Staple', 'price': price})
-            est_cost += price
+    # 1. Handle Budget Settings
+    if request.method == 'POST' and 'set_budget' in request.form:
+        try:
+            amount = float(request.form.get('budget_amount'))
+            period = request.form.get('budget_period')
+            current_user.budget_amount = amount
+            current_user.budget_period = period
+            db.session.commit()
+            flash(f"Budget updated to ${amount} ({period})", "success")
+        except:
+            flash("Invalid budget amount.", "danger")
+        return redirect(url_for('shopping_list'))
+
+    # 2. Handle Manual Item Entry
+    if request.method == 'POST' and 'add_item' in request.form:
+        name = request.form.get('item_name')
+        try:
+            # Use input price or fallback to DB
+            price_input = request.form.get('item_price')
+            if price_input:
+                price = float(price_input)
+            else:
+                ref = FoodDatabase.query.filter(FoodDatabase.name.ilike(f"%{name}%")).first()
+                price = ref.cost_per_unit if ref else 0.0
             
-    return render_template('shopping_list.html', shop_list=shop_list, est_cost=est_cost)
+            db.session.add(ShoppingItem(user_id=current_user.id, item_name=name, estimated_price=price))
+            db.session.commit()
+        except:
+            flash("Error adding item.", "danger")
+        return redirect(url_for('shopping_list'))
+
+    # 3. Render Page with Calculations
+    shop_items = ShoppingItem.query.filter_by(user_id=current_user.id).all()
+    current_total = sum(i.estimated_price for i in shop_items)
+    
+    progress = 0
+    if current_user.budget_amount > 0:
+        progress = (current_total / current_user.budget_amount) * 100
+
+    suggestions = [f.name for f in FoodDatabase.query.limit(50).all()]
+
+    return render_template('shopping_list.html', 
+                           items=shop_items, 
+                           total=current_total, 
+                           progress=progress,
+                           suggestions=suggestions)
+
+@app.route('/generate_ai_list')
+@login_required
+def generate_ai_list():
+    if current_user.budget_amount <= 0:
+        flash("Please set a budget first.", "warning")
+        return redirect(url_for('shopping_list'))
+        
+    inv_names = [i.item_name for i in Inventory.query.filter_by(user_id=current_user.id).all()]
+    
+    # Call AI Service
+    ai_items = ai_service.suggest_budget_shopping_list(
+        current_user.budget_amount, 
+        current_user.budget_period, 
+        current_user.dietary_pref,
+        inv_names
+    )
+    
+    # Remove old AI items to prevent duplicates
+    ShoppingItem.query.filter_by(user_id=current_user.id, added_by_ai=True).delete()
+    
+    # Add new AI items
+    for item in ai_items:
+        db.session.add(ShoppingItem(
+            user_id=current_user.id, 
+            item_name=item['name'], 
+            estimated_price=item['price'],
+            added_by_ai=True
+        ))
+    
+    db.session.commit()
+    flash("AI generated a new list based on your budget!", "success")
+    return redirect(url_for('shopping_list'))
+
+@app.route('/remove_shop_item/<int:id>')
+@login_required
+def remove_shop_item(id):
+    item = ShoppingItem.query.get_or_404(id)
+    if item.user_id == current_user.id:
+        db.session.delete(item)
+        db.session.commit()
+    return redirect(url_for('shopping_list'))
+
+@app.route('/clear_list')
+@login_required
+def clear_list():
+    ShoppingItem.query.filter_by(user_id=current_user.id).delete()
+    db.session.commit()
+    flash("Shopping list cleared.", "info")
+    return redirect(url_for('shopping_list'))
+
+# --- 6. FEATURES: COMMUNITY, CHATBOT, RESOURCES ---
 
 @app.route('/community', methods=['GET', 'POST'])
 @login_required
 def community():
     if request.method == 'POST':
-        # Post a new shared item
         db.session.add(SharedItem(
             user_id=current_user.id,
             item_name=request.form.get('item_name'),
@@ -215,22 +313,11 @@ def community():
             location=current_user.location
         ))
         db.session.commit()
-        flash("Item posted for sharing!", "success")
+        flash("Item posted to community board.", "success")
         return redirect(url_for('community'))
         
     shared = SharedItem.query.filter(SharedItem.claimed==False).order_by(SharedItem.date_posted.desc()).all()
     return render_template('community.html', shared_items=shared)
-
-@app.route('/profile', methods=['GET', 'POST'])
-@login_required
-def profile():
-    if request.method == 'POST':
-        current_user.full_name = request.form.get('name')
-        current_user.dietary_pref = request.form.get('dietary_pref')
-        current_user.location = request.form.get('location')
-        db.session.commit()
-        flash('Profile updated.', 'success')
-    return render_template('profile.html', user=current_user)
 
 @app.route('/nourish_bot', methods=['GET', 'POST'])
 @login_required
@@ -245,35 +332,43 @@ def nourish_bot():
 @app.route('/meal_plan')
 @login_required
 def meal_plan():
-    items = [i.item_name for i in Inventory.query.filter_by(user_id=current_user.id).all()]
-    plan = ai_service.generate_meal_plan(items, current_user.dietary_pref)
+    items = Inventory.query.filter_by(user_id=current_user.id).all()
+    plan = ai_service.generate_smart_meal_plan(items, current_user.dietary_pref)
     return render_template('meal_planner.html', plan=plan)
 
-@app.route('/ocr_upload', methods=['POST'])
+@app.route('/articles')
 @login_required
-def ocr_upload():
-    if 'file' not in request.files: return redirect(url_for('inventory'))
-    file = request.files['file']
-    if file.filename:
-        detected_items = ai_service.mock_ocr_process()
-        for item_name in detected_items:
-            ref = FoodDatabase.query.filter(FoodDatabase.name.ilike(f"%{item_name}%")).first()
-            price = ref.cost_per_unit if ref else 1.0
-            exp = datetime.utcnow() + timedelta(days=7)
-            db.session.add(Inventory(
-                user_id=current_user.id, item_name=item_name, quantity=1, category="Other",
-                expiration_date=exp, price=price
-            ))
-        db.session.commit()
-        flash(f"Scanned: {', '.join(detected_items)}", "info")
-    return redirect(url_for('inventory'))
+def articles():
+    """New Route for Food & Sustainability Articles"""
+    articles_list = Resource.query.filter_by(type="Article").all()
+    return render_template('articles.html', articles=articles_list)
 
 @app.route('/resources')
 def resources():
     return render_template('resources.html', resources=Resource.query.all())
 
+# --- 7. DATA & RUN ---
+
+@app.route('/populate_demo')
+@login_required
+def populate_demo():
+    """Helper to quickly load data for demonstration."""
+    invs = [
+        ("Milk", "Dairy", 3, 1000, 3.50), ("Spinach", "Vegetable", 2, 200, 2.00),
+        ("Chicken Breast", "Meat", 4, 500, 8.00), ("Rice", "Grain", 100, 1000, 5.00)
+    ]
+    for n, c, d, w, p in invs:
+        db.session.add(Inventory(
+            user_id=current_user.id, item_name=n, category=c, 
+            expiration_date=datetime.utcnow()+timedelta(days=d), weight_g=w, price=p
+        ))
+    db.session.commit()
+    flash("Demo data loaded!", "info")
+    return redirect(url_for('dashboard'))
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_database(db, FoodDatabase, Resource)
+    print("Server Running on http://127.0.0.1:5000")
     app.run(debug=True, port=5000)
