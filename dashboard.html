@@ -1,22 +1,169 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row justify-content-center align-items-center" style="height: 60vh;">
-    <div class="col-md-4">
-        <div class="card border-0 shadow p-4">
-            <h3 class="text-center mb-4">Login</h3>
-            <form method="POST">
-                <div class="mb-3">
-                    <input type="email" name="email" class="form-control" placeholder="Email" required>
+
+<!-- FEATURE 7: SDG IMPACT SCORE (GAMIFIED) -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card text-white border-0 shadow" style="background: linear-gradient(135deg, #00b09b, #96c93d);">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase opacity-75 ls-1">Sustainability Score (SDG 12)</h6>
+                        <h1 class="display-3 fw-bold mb-0">{{ score }}<span class="fs-4">/100</span></h1>
+                        
+                        <div class="progress mt-2" style="height: 6px; width: 200px; background: rgba(255,255,255,0.3);">
+                            <!-- Width set via JS at bottom to prevent IDE syntax errors -->
+                            <div id="sdgProgressBar" class="progress-bar bg-white" role="progressbar"></div>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="d-inline-block me-4">
+                            <h3>${{ "%.2f"|format(waste.money_week) }}</h3>
+                            <small class="opacity-75">Loss this Week</small>
+                        </div>
+                        <!-- FEATURE 5: WASTE ESTIMATION (WEIGHT) -->
+                        <div class="d-inline-block">
+                            <h3>{{ "%.2f"|format(waste.kg_week) }} kg</h3>
+                            <small class="opacity-75">Waste this Week</small>
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <input type="password" name="password" class="form-control" placeholder="Password" required>
-                </div>
-                <button class="btn btn-success w-100 rounded-pill">Login</button>
-            </form>
-            <p class="text-center mt-3 small">
-                <a href="/register" class="text-decoration-none text-success">Create an account</a>
-            </p>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- DEMO PROMPT: Only shows if inventory is empty -->
+{% if items|length == 0 %}
+<div class="alert alert-light shadow-sm border d-flex justify-content-between align-items-center">
+    <span><i class="fas fa-magic text-primary me-2"></i>Start tracking to unlock AI features.</span>
+    <a href="/populate_demo" class="btn btn-sm btn-primary">Load Demo Data</a>
+</div>
+{% endif %}
+
+<div class="row">
+    <!-- LEFT COLUMN: AI ANALYSIS -->
+    <div class="col-lg-8">
+        
+        <!-- FEATURE 1: AI CONSUMPTION ANALYZER & INSIGHTS -->
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-header bg-white fw-bold text-primary border-bottom-0 pt-3">
+                <i class="fas fa-robot me-2"></i>AI Analyzer Insights
+            </div>
+            <div class="card-body pt-0">
+                {% if insights %}
+                    {% for i in insights %}
+                        <div class="alert alert-light border-start border-warning border-4 mb-2 py-2 small">{{ i }}</div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">Log more actions (Eating/Wasting) to generate patterns.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- FEATURE 4: EXPIRATION RISK PREDICTOR -->
+        {% if risks %}
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-header bg-danger text-white fw-bold">
+                <i class="fas fa-exclamation-triangle me-2"></i>High Risk Items (Expiring Soon)
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for r in risks %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <strong>{{ r.name }}</strong>
+                        <br><small class="text-danger fw-bold">{{ r.msg }}</small>
+                    </span>
+                    <div>
+                        <a href="/meal_plan" class="btn btn-sm btn-outline-dark me-1">Plan Meal</a>
+                        <a href="/log_action/{{ r.id }}/eat" class="btn btn-sm btn-success">Eat</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- CHART -->
+        <div class="card p-3 shadow-sm border-0 mb-4">
+            <h6 class="fw-bold">Inventory Composition</h6>
+            <div style="height: 200px;"><canvas id="invChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: ACTIONS & LINKS -->
+    <div class="col-lg-4">
+        <div class="d-grid gap-3 mb-4">
+            <a href="/inventory" class="btn btn-dark py-2 shadow-sm"><i class="fas fa-barcode me-2"></i>Update Inventory</a>
+            <!-- FEATURE 2 LINK -->
+            <a href="/meal_plan" class="btn btn-primary py-2 shadow-sm"><i class="fas fa-utensils me-2"></i>AI Meal Plan</a>
+            <!-- FEATURE 6 LINK -->
+            <a href="/nourish_bot" class="btn btn-warning text-white py-2 shadow-sm"><i class="fas fa-comments me-2"></i>Ask NourishBot</a>
+        </div>
+        
+        <!-- RECENT HISTORY -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white fw-bold">Recent History</div>
+            <ul class="list-group list-group-flush small">
+                {% for log in logs %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ log.item_name }}</span>
+                    {% if log.status == 'Consumed' %}
+                        <span class="badge bg-success">Saved</span>
+                    {% else %}
+                        <span class="badge bg-danger">Wasted ({{ log.weight_loss_g }}g)</span>
+                    {% endif %}
+                </li>
+                {% else %}
+                <li class="list-group-item text-center text-muted">No logs yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- ARTICLES LINK CARD -->
+        <div class="card shadow-sm border-0 bg-dark text-white" style="background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400'); background-size: cover;">
+            <div class="card-body p-4 text-center">
+                <h5 class="fw-bold mb-2"><i class="fas fa-lightbulb text-warning me-2"></i>Daily Read</h5>
+                <p class="small opacity-75">Learn 10 ways to reduce kitchen waste instantly.</p>
+                <a href="/articles" class="btn btn-light btn-sm fw-bold rounded-pill px-4">
+                    Explore Library
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // 1. Set Progress Bar Width (Fixes VS Code CSS Error)
+    // We define the score in JS and apply it dynamically.
+    var sdgScore = parseFloat("{{ score }}");
+    if(document.getElementById('sdgProgressBar')) {
+        document.getElementById('sdgProgressBar').style.width = sdgScore + "%";
+    }
+
+    // 2. Chart.js Logic
+    var ctx = document.getElementById('invChart').getContext('2d');
+    
+    // Parse JSON data safely
+    var labels = JSON.parse('{{ cat_labels | tojson | safe }}');
+    var data = JSON.parse('{{ cat_data | tojson | safe }}');
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{ 
+                data: data, 
+                backgroundColor: ['#2ecc71','#3498db','#f1c40f','#e74c3c','#9b59b6'] 
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { position: 'right' } } 
+        }
+    });
+</script>
 {% endblock %}
