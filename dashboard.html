@@ -1,113 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card text-white bg-success p-4 shadow" style="background: linear-gradient(135deg, #11998e, #38ef7d);">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="opacity-75">SDG IMPACT SCORE</h6>
-                    <h1 class="display-3 fw-bold">{{ score }}/100</h1>
+<div class="row justify-content-center align-items-center" style="height: 60vh;">
+    <div class="col-md-4">
+        <div class="card border-0 shadow p-4">
+            <h3 class="text-center mb-4">Login</h3>
+            <form method="POST">
+                <div class="mb-3">
+                    <input type="email" name="email" class="form-control" placeholder="Email" required>
                 </div>
-                <div class="text-end">
-                    <h3>${{ "%.2f"|format(stats.weekly_waste) }}</h3>
-                    <small>Wasted This Week</small>
+                <div class="mb-3">
+                    <input type="password" name="password" class="form-control" placeholder="Password" required>
                 </div>
-            </div>
+                <button class="btn btn-success w-100 rounded-pill">Login</button>
+            </form>
+            <p class="text-center mt-3 small">
+                <a href="/register" class="text-decoration-none text-success">Create an account</a>
+            </p>
         </div>
     </div>
 </div>
-
-{% if stats.count == 0 %}
-<div class="alert alert-info d-flex justify-content-between align-items-center shadow-sm">
-    <span><i class="fas fa-info-circle me-2"></i>Dashboard is empty.</span>
-    <a href="/populate_demo" class="btn btn-primary btn-sm fw-bold">Load Demo Data</a>
-</div>
-{% endif %}
-
-<div class="row">
-    <!-- LEFT COLUMN -->
-    <div class="col-lg-8">
-        <!-- AI Insights -->
-        <div class="card mb-4 shadow-sm border-0">
-            <div class="card-header bg-white fw-bold text-primary">
-                <i class="fas fa-robot me-2"></i>AI Insights
-            </div>
-            <div class="card-body">
-                {% for i in insights %}
-                    <div class="alert alert-light border-start border-info border-3 mb-2">{{ i }}</div>
-                {% else %}
-                    <p class="text-muted">Log items to see AI insights.</p>
-                {% endfor %}
-            </div>
-        </div>
-        
-        <!-- Risks -->
-        {% if risks %}
-        <div class="card mb-4 shadow-sm border-0">
-            <div class="card-header bg-danger text-white fw-bold">
-                <i class="fas fa-exclamation-triangle me-2"></i>Expiration Risks
-            </div>
-            <ul class="list-group list-group-flush">
-                {% for r in risks %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span><strong>{{ r.name }}</strong> <small class="text-danger">{{ r.msg }}</small></span>
-                    <a href="/log_action/{{ r.id }}/eat" class="btn btn-sm btn-success rounded-pill">Eat Now</a>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endif %}
-        
-        <!-- Chart -->
-        <div class="card p-4 shadow-sm border-0 mb-4">
-            <h5 class="card-title fw-bold mb-3">Inventory Breakdown</h5>
-            <div style="height: 250px; width: 100%;">
-                <canvas id="invChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- RIGHT COLUMN -->
-    <div class="col-lg-4">
-        <div class="d-grid gap-3 mb-4">
-            <a href="/inventory" class="btn btn-outline-dark py-2 shadow-sm">Update Inventory</a>
-            <a href="/shopping_list" class="btn btn-outline-primary py-2 shadow-sm">Shopping List</a>
-            <a href="/nourish_bot" class="btn btn-warning text-white py-2 shadow-sm">Ask NourishBot</a>
-            <a href="/meal_plan" class="btn btn-info text-white py-2 shadow-sm">Generate Meal Plan</a>
-        </div>
-        
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white fw-bold">Recent Activity</div>
-            <ul class="list-group list-group-flush">
-                {% for log in logs %}
-                <li class="list-group-item d-flex justify-content-between">
-                    <span>{{ log.item_name }}</span>
-                    <span class="badge bg-{{ 'success' if log.status == 'Consumed' else 'danger' }}">{{ log.status }}</span>
-                </li>
-                {% else %}
-                <li class="list-group-item text-muted text-center py-3">No recent activity.</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    var chartLabels = JSON.parse('{{ cat_labels | tojson | safe }}');
-    var chartData = JSON.parse('{{ cat_data | tojson | safe }}');
-
-    var ctx = document.getElementById('invChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                data: chartData,
-                backgroundColor: ['#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#9b59b6', '#34495e']
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-</script>
 {% endblock %}
